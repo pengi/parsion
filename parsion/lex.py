@@ -28,7 +28,7 @@ class ParsionToken:
 
 class ParsionEndToken(ParsionToken):
     def __init__(self, pos):
-        super().__init__('END', None, pos, pos)
+        super().__init__('END', 'END', pos, pos)
 
 class ParsionLexer:
     def __init__(self, rules):
@@ -55,3 +55,6 @@ class ParsionLexer:
             if not token.ignore():
                 yield token
         yield ParsionEndToken(pos)
+
+    def get_token_set(self):
+        return {rule[0] for rule in self.rules}.union({'END'})
