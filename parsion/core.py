@@ -2,8 +2,6 @@ from parsion.lex import ParsionLexer
 from parsion.parser import ParsionFSM
 from .exceptions import ParsionInternalError
 
-from pprint import pprint
-
 class ParsionParseError(Exception):
     pass
 

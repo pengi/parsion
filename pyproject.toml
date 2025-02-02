@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 enabled = true
 
 [tool.setuptools]
-py-modules = ['parsion']
+packages = ['parsion']
 
 [project]
 classifiers = [
