@@ -1,19 +1,23 @@
 from parsion.lex import ParsionLexer
 from parsion.parser import ParsionFSM
+from .exceptions import ParsionInternalError
 
 from pprint import pprint
 
-class ParsionException(Exception):
-    pass
-
 class Parsion:
-    def __init__(self, lex_rules, grammar_rules):
+    def __init__(self, lex_rules, grammar_rules, self_check=True):
         self.lex = ParsionLexer(lex_rules)
         self.parse_grammar, self.parse_table = ParsionFSM(grammar_rules).export()
-    
+        if self_check:
+            self._self_check()
+
+    def _self_check(self):
+        from .self_check import run_self_check
+        run_self_check(self)
+
     def _call_reduce(self, goal, accepts, parts):
         args = [p[0] for a, p in zip(accepts, parts) if a]
-        
+
         if goal is None:
             assert len(args) == 1
             return args[0]
@@ -41,7 +45,7 @@ class Parsion:
                 ))
                 stack = stack[:-len(accepts)]
             else:
-                raise ParsionException('Internal error: neigher shift nor reduce')
+                raise ParsionInternalError('Internal error: neigher shift nor reduce')
         
         # Stack contains three elements:
         #  0. ('START', ...) - bootstrap
@@ -89,4 +93,4 @@ class Parsion:
         ))
 
     def entry(self, v):
-        return v
+        return v#

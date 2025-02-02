@@ -121,9 +121,9 @@ class ParsionFSM:
         self.grammar = [
             ParsionFSMGrammarRule(
                 0,
+                None,
                 'ENTRY',
-                'ENTRY',
-                'entry END'
+                'entry _END'
             )
         ] + [
             ParsionFSMGrammarRule(id+1, name, gen, rulestr)

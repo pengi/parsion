@@ -1,7 +1,8 @@
 
 import re
+from .exceptions import ParsionException
 
-class ParsionLexerError(Exception):
+class ParsionLexerError(ParsionException):
     def __init__(self, message, input, pos):
         super().__init__(message)
         self.input = input
