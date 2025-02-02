@@ -4,6 +4,9 @@ from .exceptions import ParsionInternalError
 
 from pprint import pprint
 
+class ParsionParseError(Exception):
+    pass
+
 class Parsion:
     def __init__(self, lex_rules, grammar_rules, self_check=True):
         self.lex = ParsionLexer(lex_rules)
@@ -31,6 +34,9 @@ class Parsion:
         while len(tokens) > 0:
             tok_name, tok_value = tokens[0]
             cur_state = stack[-1][1]
+            if tok_name not in self.parse_table[cur_state]:
+                expect_toks = ",".join(self.parse_table[cur_state].keys())
+                raise ParsionParseError(f'Unexpected {tok_name}, expected {expect_toks}')
             op, id = self.parse_table[cur_state][tok_name]
             if op == 's':
                 # shift

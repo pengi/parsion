@@ -25,6 +25,9 @@ class ParsionFSMGrammarRule:
     def _tupleize(self):
         """
         Get a tuple of all relevant parameters, for usage in __eq__ and __lt__
+        
+        >>> ParsionFSMGrammarRule(12, 'name', 'gen', 'lhs _op rhs')._tupleize()
+        ('name', 'gen', ['lhs', 'op', 'rhs'], [True, False, True])
         """
         return (self.name or '', self.gen, self.parts, self.attrtokens)
 
@@ -42,7 +45,7 @@ class ParsionFSMItem:
     def __init__(self, rule, follow, pos=0):
         self.rule = rule
         self.pos = pos
-        self.follow = follow
+        self.follow = set(follow)
 
     def __str__(self):
         name = f'{self.rule.name}:' if self.rule.name is not None else ''
@@ -65,6 +68,23 @@ class ParsionFSMItem:
         return self._tupleize() == other._tupleize()
 
     def get_next(self):
+        """
+        Get next two symbols from an item
+        
+        >>> rule = ParsionFSMGrammarRule(12, 'name', 'gen', 'lhs _op rhs')
+        
+        >>> ParsionFSMItem(rule, ['fa', 'fb'], 0).get_next()
+        ('lhs', ['op'])
+        
+        >>> ParsionFSMItem(rule, ['fa', 'fb'], 1).get_next()
+        ('op', ['rhs'])
+        
+        >>> ParsionFSMItem(rule, ['fa', 'fb'], 2).get_next()
+        ('rhs', ['fa', 'fb'])
+        
+        >>> ParsionFSMItem(rule, ['fa', 'fb'], 3).get_next() is None
+        True
+        """
         n = self.rule.get(self.pos)
         if n is None:
             return None
@@ -73,7 +93,7 @@ class ParsionFSMItem:
             f = self.follow
         else:
             f = {f}
-        return n, f
+        return n, sorted(f)
     
     def is_complete(self):
         return self.rule.get(self.pos) is None
@@ -93,6 +113,7 @@ class ParsionFSMItem:
         return ParsionFSMItem(self.rule, self.follow.union(other.follow), self.pos)
 
 class ParsionFSMState:
+    
     def __init__(self, items):
         self.items = sorted(items)
     
@@ -150,6 +171,7 @@ class ParsionFSM:
         return len(self.states)-1
     
     def _get_first(self, syms):
+        syms = set(syms)
         checked = set()
         while True:
             for cur_sym in syms-checked:
