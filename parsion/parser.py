@@ -1,3 +1,31 @@
+def _noset(obj):
+    """
+    Remove sets from obj, only for doctests
+    
+    It looses the use case of doctests, but when an object returns a set, the
+    order is random and can't be tested otherwise
+    
+    >>> _noset(12)
+    12
+    
+    >>> _noset({1, 4, 3})
+    [1, 3, 4]
+    
+    >>> _noset((4, 3, {4, 2}))
+    (4, 3, [2, 4])
+    
+    >>> _noset([1, 4, {1, 3}, 3])
+    [1, 4, [1, 3], 3]
+    """
+    if type(obj) == set:
+        return sorted(_noset(x) for x in obj)
+    elif type(obj) == tuple:
+        return tuple(_noset(x) for x in obj)
+    elif type(obj) == list:
+        return [_noset(x) for x in obj]
+    else:
+        return obj
+
 class ParsionFSMMergeError(Exception):
     pass
 
@@ -10,6 +38,14 @@ class ParsionFSMGrammarRule:
         parts = rulestr.split(' ')
         self.attrtokens = [part[0] != '_' for part in parts]
         self.parts = [part[1:] if part[0] == '_' else part for part in parts]
+        
+        # This class will never change value. Precalculate hash
+        self.hash = hash((
+            type(self).__name__,
+            self.gen,
+            self.name,
+            sum(hash(t) for t in self.attrtokens)
+        ))
     
     def get(self, idx, default=None):
         if idx < len(self.parts):
@@ -29,6 +65,9 @@ class ParsionFSMGrammarRule:
         """
         return (self.name or '', self.gen, self.parts, self.attrtokens)
 
+    def __hash__(self):
+        return self.hash
+
     def __lt__(self, other):
         return self._tupleize() < other._tupleize()
     
@@ -44,6 +83,14 @@ class ParsionFSMItem:
         self.rule = rule
         self.pos = pos
         self.follow = set(follow)
+        
+        # This class will never change value. Precalculate hash
+        self.hash = hash((
+            type(self).__name__,
+            self.rule,
+            self.pos,
+            sum(hash(x) for x in self.follow)
+        ))
 
     def __str__(self):
         name = f'{self.rule.name}:' if self.rule.name is not None else ''
@@ -59,6 +106,9 @@ class ParsionFSMItem:
         """
         return (self.rule, self.pos, self.follow)
 
+    def __hash__(self):
+        return self.hash
+
     def __lt__(self, other):
         return self._tupleize() < other._tupleize()
 
@@ -71,16 +121,16 @@ class ParsionFSMItem:
         
         >>> rule = ParsionFSMGrammarRule(12, 'name', 'gen', 'lhs _op rhs')
         
-        >>> ParsionFSMItem(rule, ['fa', 'fb'], 0).get_next()
-        ('lhs', ['op'])
+        >>> ParsionFSMItem(rule, {'fa', 'fb'}, 0).get_next()
+        ('lhs', {'op'})
         
-        >>> ParsionFSMItem(rule, ['fa', 'fb'], 1).get_next()
-        ('op', ['rhs'])
+        >>> ParsionFSMItem(rule, {'fa', 'fb'}, 1).get_next()
+        ('op', {'rhs'})
         
-        >>> ParsionFSMItem(rule, ['fa', 'fb'], 2).get_next()
+        >>> _noset(ParsionFSMItem(rule, {'fa', 'fb'}, 2).get_next())
         ('rhs', ['fa', 'fb'])
         
-        >>> ParsionFSMItem(rule, ['fa', 'fb'], 3).get_next() is None
+        >>> ParsionFSMItem(rule, {'fa', 'fb'}, 3).get_next() is None
         True
         """
         n = self.rule.get(self.pos)
@@ -91,7 +141,7 @@ class ParsionFSMItem:
             f = self.follow
         else:
             f = {f}
-        return n, sorted(f)
+        return n, f
     
     def is_complete(self):
         return self.rule.get(self.pos) is None
@@ -113,7 +163,8 @@ class ParsionFSMItem:
 class ParsionFSMState:
     
     def __init__(self, items):
-        self.items = sorted(items)
+        self.items = set(items)
+        self.hash = sum(hash(it) for it in self.items)
     
     def next_syms(self):
         return set(it.get_next()[0] for it in self.items if not it.is_complete())
@@ -128,6 +179,9 @@ class ParsionFSMState:
             if next_item is not None:
                 result.append(next_item)
         return result
+    
+    def __hash__(self):
+        return self.hash
     
     def __str__(self):
         return "\n".join(str(it) for it in self.items)
@@ -150,35 +204,46 @@ class ParsionFSM:
             in enumerate(grammar_rules)
         ]
         
+        self._build_sym_set()
+        self._calculate_firsts()
         self._build_states()
 
-    def _get_items_by_gen(self, gen, follow):
-        return [
-            ParsionFSMItem(rule, follow)
-            for rule
-            in self.grammar
-            if rule.gen == gen
-        ]
+    def _get_rules_by_gen(self, gen):
+        return [ rule for rule in self.grammar if rule.gen == gen ]
     
     def _add_state(self, state):
-        for i, state_i in enumerate(self.states):
-            if state == state_i:
-                return i
-        self.states.append(state)
-        self.table.append({})
-        return len(self.states)-1
+        state_id = self.state_ids.get(state)
+        if state_id is None:
+            state_id = len(self.states)
+            self.state_ids[state] = state_id
+            self.states.append(state)
+            self.table.append({})
+        return state_id
+    
+    def _build_sym_set(self):
+        self.sym_set = set()
+        for rule in self.grammar:
+            self.sym_set.add(rule.gen)
+            self.sym_set.update(rule.parts)
+        
+    def _calculate_firsts(self):
+        rule_firsts = {rule.gen: rule.parts[0] for rule in self.grammar}
+        self.firsts = {}
+        for sym in self.sym_set:
+            first_set = set()
+            cur_sym = sym
+            while cur_sym not in first_set:
+                first_set.add(cur_sym)
+                if cur_sym in rule_firsts:
+                    cur_sym = rule_firsts[cur_sym]
+            self.firsts[sym] = first_set
+            
     
     def _get_first(self, syms):
-        syms = set(syms)
-        checked = set()
-        while True:
-            for cur_sym in syms-checked:
-                for rule in self.grammar:
-                    if rule.gen == cur_sym:
-                        syms.add(rule.parts[0])
-                checked.add(cur_sym)
-            if syms == checked:
-                return syms
+        result = set()
+        for sym in syms:
+            result.update(self.firsts.get(sym, set()))
+        return result
     
     def _get_closure(self, items):
         """
@@ -187,10 +252,8 @@ class ParsionFSM:
         A closure is the input items, but also populated with new items from
         grammars, which generates the next symbol of the incoming list of items
         """
-        running = True
-        syms_added = set()
 
-        all_items = []
+        all_items = {}
         queue = []
 
         for item in items:
@@ -199,41 +262,40 @@ class ParsionFSM:
         # Resolve all sub items
         while len(queue) > 0:
             it = queue.pop()
-            if any(cur == it for cur in all_items):
-                continue
-            all_items.append(it)
-            
+
+            key = (it.rule, it.pos)
+            if key in all_items:
+                old_it = all_items[key]
+                new_it = old_it.merge(it)
+                if new_it == old_it:
+                    continue
+                all_items[key] = new_it
+            else:
+                all_items[key] = it
+
             if not it.is_complete():
                 sym, follow = it.get_next()
-                for item in self._get_items_by_gen(sym, self._get_first(follow)):
-                    queue.append(item)
+                follow_first = self._get_first(follow)
+                for rule in self._get_rules_by_gen(sym):
+                    queue.append(ParsionFSMItem(rule, follow_first))
 
-        # Merge items with same rule and pos
-        result = []
-        for it in all_items:
-            is_merged = False
-            for i, res_it in enumerate(result):
-                if it.is_mergable(res_it):
-                    is_merged = True
-                    result[i] = res_it.merge(it)
-                    break
-            if not is_merged:
-                result.append(it)
-
-        result.sort()
-        return result
+        return sorted(all_items.values())
 
 
     def _build_states(self):
-        self.states = [
+        self.states = []
+        self.table = []
+        self.state_ids = {}
+        
+        self._add_state(
             ParsionFSMState(self._get_closure([
                 ParsionFSMItem(
                     self.grammar[0],
                     set()
                 )
             ]))
-        ]
-        self.table = [{}]
+        )
+        
         state_queue = [0]
         processed = set()
 
