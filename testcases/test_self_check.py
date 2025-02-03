@@ -2,15 +2,15 @@ import pytest
 from parsion import *
 
 class BaseLang(Parsion):
-    def __init__(self, self_check=True):
-        super().__init__([
-            (None,       r'(\s+)',                     lambda x: None),
-            ('INT',      r'([0-9]+|0x[0-9a-fA-F]+)',   lambda x: int(x,base=0))
-        ],[
-            ('entry',         'entry',        'expr'),
-            ('expr_int',      'expr',         'INT'),
-            ('expr_int_expr', 'expr',         'INT expr')
-        ], self_check=self_check)
+    LEXER_RULES = [
+        (None,       r'(\s+)',                     lambda x: None),
+        ('INT',      r'([0-9]+|0x[0-9a-fA-F]+)',   lambda x: int(x,base=0))
+    ]
+    GRAMMAR_RULES = [
+        ('entry',         'entry',        'expr'),
+        ('expr_int',      'expr',         'INT'),
+        ('expr_int_expr', 'expr',         'INT expr')
+    ]
 
 def test_working():
     """
@@ -86,9 +86,7 @@ def test_missing_func():
 
 def test_self_check_disabled():
     class TestLang(BaseLang):
-        def __init__(self):
-            super().__init__(self_check=False)
-
+        SELF_CHECK = False
         def expr_int(self, v):
             return v
 

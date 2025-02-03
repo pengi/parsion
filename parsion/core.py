@@ -6,10 +6,14 @@ class ParsionParseError(Exception):
     pass
 
 class Parsion:
-    def __init__(self, lex_rules, grammar_rules, self_check=True):
-        self.lex = ParsionLexer(lex_rules)
-        self.parse_grammar, self.parse_table = ParsionFSM(grammar_rules).export()
-        if self_check:
+    LEXER_RULES=[]
+    GRAMMAR_RULES=[]
+    SELF_CHECK=True
+    
+    def __init__(self, lex_rules=None, grammar_rules=None, self_check=True):
+        self.lex = ParsionLexer(self.LEXER_RULES)
+        self.parse_grammar, self.parse_table = ParsionFSM(self.GRAMMAR_RULES).export()
+        if self.SELF_CHECK:
             self._self_check()
 
     def _self_check(self):
