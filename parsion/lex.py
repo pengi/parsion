@@ -29,7 +29,7 @@ class ParsionToken:
 
 class ParsionEndToken(ParsionToken):
     def __init__(self, pos):
-        super().__init__('END', 'END', pos, pos)
+        super().__init__('$END', '$END', pos, pos)
 
 class ParsionLexer:
     def __init__(self, rules):

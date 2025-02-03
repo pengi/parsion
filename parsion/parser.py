@@ -141,8 +141,8 @@ class ParsionFSM:
             ParsionFSMGrammarRule(
                 0,
                 None,
-                'ENTRY',
-                'entry _END'
+                '$ENTRY',
+                'entry _$END'
             )
         ] + [
             ParsionFSMGrammarRule(id+1, name, gen, rulestr)
