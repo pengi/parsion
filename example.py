@@ -103,7 +103,7 @@ if __name__ == '__main__':
     
     # Print the parsing tables
     # This line uses "tabulate" library
-    parser.print()
+    #parser.print()
     
     # Parse a string
     print(parser.parse('(12 + 32 * 4) / 7 + 13'))
