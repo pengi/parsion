@@ -9,6 +9,8 @@ def _self_check_handlers(par):
     # Keep inspect in this functions, so it can easily be disabled
     import inspect
     
+    expected_funcs = {}
+    
     # Check all reduce handlers are accessable
     for i, (gen, goal, accepts) in enumerate(par.parse_grammar):
         arg_count = sum(1 for a in accepts if a)
@@ -16,6 +18,16 @@ def _self_check_handlers(par):
             if arg_count != 1:
                 raise ParsionSelfCheckError(f'No handler for rule #{i} (gen: {gen}), but {arg_count} arguments (expects 1)')
         else:
+            expected_funcs[goal] = arg_count
+    
+    # Check all error handlers are implemented
+    for error_handlers in par.error_handlers.values():
+        for gen, handler in error_handlers.values():
+            expected_funcs[handler] = 2 # error_stack, error_tokens
+    
+        
+    # Check all reduce handlers are accessable
+    for goal, arg_count in expected_funcs.items():
             try:
                 handler = inspect.signature(getattr(par, goal))
                 

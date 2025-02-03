@@ -191,6 +191,20 @@ class ParsionFSMState:
 
 class ParsionFSM:
     def __init__(self, grammar_rules):
+        self.error_rules = {
+            gen: name
+            for (name, gen, rulestr)
+            in grammar_rules
+            if rulestr == '$ERROR'
+        }
+        
+        no_error_rules = [
+            (name, gen, rulestr)
+            for (name, gen, rulestr)
+            in grammar_rules
+            if rulestr != '$ERROR'
+        ]
+        
         self.grammar = [
             ParsionFSMGrammarRule(
                 0,
@@ -201,7 +215,7 @@ class ParsionFSM:
         ] + [
             ParsionFSMGrammarRule(id+1, name, gen, rulestr)
             for id, (name, gen, rulestr)
-            in enumerate(grammar_rules)
+            in enumerate(no_error_rules)
         ]
         
         self._build_sym_set()
@@ -286,6 +300,7 @@ class ParsionFSM:
         self.states = []
         self.table = []
         self.state_ids = {}
+        self.error_handlers = {}
         
         self._add_state(
             ParsionFSMState(self._get_closure([
@@ -305,7 +320,19 @@ class ParsionFSM:
                 continue
             state = self.states[state_id]
             processed.add(state_id)
+            
+            # Check if state can have an error handler
+            error_handlers = {}
+            for it in state.items:
+                if it.rule.gen in self.error_rules:
+                    for sym in it.follow:
+                        # TODO: Proper raise
+                        assert sym not in error_handlers, f'Error handler conflict {it.rule.gen} - {sym} already defined'
+                        error_handlers[sym] = (it.rule.gen, self.error_rules[it.rule.gen])
+            if error_handlers != {}:
+                self.error_handlers[state_id] = error_handlers
 
+            # Process rules
             for sym in state.next_syms():
                 next_id = self._add_state(ParsionFSMState(self._get_closure(state.take(sym))))
                 state_queue.append(next_id)
@@ -318,4 +345,4 @@ class ParsionFSM:
                 
 
     def export(self):
-        return [g.export() for g in self.grammar], self.table
+        return [g.export() for g in self.grammar], self.table, self.error_handlers

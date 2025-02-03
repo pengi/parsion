@@ -18,7 +18,7 @@ class ExprLang(Parsion):
     GRAMMAR_RULES = [
         ('entry',       'entry',        'stmts'),
         ('stmts_list',  'stmts',        'stmt _; stmts'),
-        ('stmts_tail',  'stmts',        'stmt _;'),
+        ('stmts_tail',  'stmts',        'stmt'),
         
         # proxy statement, to be able to isolate errors to top level
         (None,          'stmt',         'expr'),
@@ -36,9 +36,6 @@ class ExprLang(Parsion):
         ('expr_int',    'expr4',        'INT'),
         (None,          'expr4',        '_( expr _)'),
     ]
-    
-    def error_stmt(self, error):
-        return None
     
     def stmts_list(self, expr, list):
         return [expr] + list
@@ -64,14 +61,21 @@ class ExprLang(Parsion):
     def expr_int(self, v):
         return v
 
-def test_simple_parse():
-    lang = ExprLang()
-    assert lang.parse("(12+3)*4; 1+3; 43*4;") == [(12+3)*4, 1+3, 43*4]
+class ExprLangErrorHandler(ExprLang):
+    def error_stmt(self, error_stack, error_tokens):
+        return None
 
-@pytest.mark.skip(reason="Error handling not yet implemented")
+def test_simple_parse():
+    lang = ExprLangErrorHandler()
+    assert lang.parse("(12+3)*4; 1+3; 43*4") == [(12+3)*4, 1+3, 43*4]
+
 def test_simple_error_stmt():
     """
     Test that error in one statement is isolated to that statement
     """
-    lang = ExprLang()
-    assert lang.parse("(12+3)*4; 3+; 43*4;") == [(12+3)*4, None, 43*4]
+    lang = ExprLangErrorHandler()
+    assert lang.parse("(12+3)*4; 3+ *; 43*4") == [(12+3)*4, None, 43*4]
+
+def test_missing_error_handler():
+    with pytest.raises(ParsionSelfCheckError):
+        ExprLang()

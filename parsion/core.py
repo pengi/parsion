@@ -12,7 +12,7 @@ class Parsion:
     
     def __init__(self, lex_rules=None, grammar_rules=None, self_check=True):
         self.lex = ParsionLexer(self.LEXER_RULES)
-        self.parse_grammar, self.parse_table = ParsionFSM(self.GRAMMAR_RULES).export()
+        self.parse_grammar, self.parse_table, self.error_handlers = ParsionFSM(self.GRAMMAR_RULES).export()
         if self.SELF_CHECK:
             self._self_check()
 
@@ -29,6 +29,9 @@ class Parsion:
         else:
             return getattr(self, goal)(*args)
     
+    def _call_error_handler(self, handler, error_stack, error_tokens):
+        return getattr(self, handler)(error_stack, error_tokens)
+    
     def parse(self, input):
         tokens = [(tok.name, tok.value) for tok in self.lex.tokenize(input)]
         stack = [('START', 0)]
@@ -37,8 +40,38 @@ class Parsion:
             tok_name, tok_value = tokens[0]
             cur_state = stack[-1][1]
             if tok_name not in self.parse_table[cur_state]:
-                expect_toks = ",".join(self.parse_table[cur_state].keys())
-                raise ParsionParseError(f'Unexpected {tok_name}, expected {expect_toks}')
+                # Unexpected token, do error recovery
+                
+                # First, pop stack until error handler
+                error_stack = []
+                while len(stack) > 0 and stack[-1][1] not in self.error_handlers:
+                    error_stack.append(stack.pop())
+                
+                # Second, fetch tokens until error is isolated
+                if len(stack) == 0:
+                    expect_toks = ",".join(self.parse_table[cur_state].keys())
+                    raise ParsionParseError(f'Unexpected {tok_name}, expected {expect_toks}')
+                
+                state_error_handlers = self.error_handlers[stack[-1][1]]
+
+                error_tokens = []
+                while len(tokens) > 0 and tokens[0][0] not in state_error_handlers:
+                    error_tokens.append(tokens.pop(0))
+                
+                if len(tokens) == 0:
+                    expect_toks = ",".join(self.parse_table[cur_state].keys())
+                    raise ParsionParseError(f'Unexpected {tok_name}, expected {expect_toks}')
+                
+                # Call error handler, mimic a reduce operation
+                error_gen, error_handler = state_error_handlers[tokens[0][0]]
+                value = self._call_error_handler(
+                    error_handler,
+                    error_stack,
+                    error_tokens
+                )
+                tokens.insert(0, (error_gen, value))
+                continue
+                
             op, id = self.parse_table[cur_state][tok_name]
             if op == 's':
                 # shift
