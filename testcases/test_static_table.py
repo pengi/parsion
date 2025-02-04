@@ -1,9 +1,9 @@
 import pytest
-from parsion import Parsion, ParsionInternalError
+from parsion import ParsionStatic, ParsionInternalError
 
 
 def test_static_table():
-    class StaticLang(Parsion):
+    class StaticLang(ParsionStatic):
         LEXER_RULES = [
             (None,       r'(\s+)', lambda x: None),
             ('INT',      r'([0-9]+|0x[0-9a-fA-F]+)', lambda x: int(x, base=0))
@@ -40,7 +40,7 @@ def test_static_table():
 
 
 def test_static_table_error():
-    class StaticLang(Parsion):
+    class StaticLang(ParsionStatic):
         LEXER_RULES = [
             (None,       r'(\s+)', lambda x: None),
             ('INT',      r'([0-9]+|0x[0-9a-fA-F]+)', lambda x: int(x, base=0))

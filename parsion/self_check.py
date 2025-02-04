@@ -13,7 +13,7 @@ def _self_check_handlers(par):
     expected_funcs = {}
 
     # Check all reduce handlers are accessable
-    for i, (gen, goal, accepts) in enumerate(par.parse_grammar):
+    for i, (gen, goal, accepts) in enumerate(par.parser.parse_grammar):
         argc = sum(1 for a in accepts if a)
         if goal is None:
             if argc != 1:
@@ -24,7 +24,7 @@ def _self_check_handlers(par):
             expected_funcs[goal] = argc
 
     # Check all error handlers are implemented
-    for error_handlers in par.error_handlers.values():
+    for error_handlers in par.parser.error_handlers.values():
         for gen, handler in error_handlers.values():
             expected_funcs[handler] = 2  # error_stack, error_tokens
 

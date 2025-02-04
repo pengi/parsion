@@ -1,149 +1,61 @@
-from parsion.lex import ParsionLexer
-from parsion.parser import ParsionFSM
-from .exceptions import ParsionInternalError
+from .lex import ParsionLexer
+from .parser import ParsionParser
+from .parsegen import ParsionFSM
 
 
-class ParsionParseError(Exception):
-    pass
-
-
-class Parsion:
+class ParsionBase:
     LEXER_RULES = []
-    GRAMMAR_RULES = []
     SELF_CHECK = True
 
-    STATIC_GRAMMAR = None
-    STATIC_TABLE = None
-    STATIC_ERROR_HANDLERS = None
-
-    def __init__(self, lex_rules=None, grammar_rules=None, self_check=True):
-        self.lex = ParsionLexer(self.LEXER_RULES)
-
-        if self.STATIC_GRAMMAR is not None:
-            self.parse_grammar = self.STATIC_GRAMMAR
-            self.parse_table = self.STATIC_TABLE
-            self.error_handlers = self.STATIC_ERROR_HANDLERS
-        else:
-            (
-                self.parse_grammar,
-                self.parse_table,
-                self.error_handlers
-            ) = ParsionFSM(self.GRAMMAR_RULES).export()
-
+    def __init__(self, lexer, parser):
+        self.lexer = lexer
+        self.parser = parser
         if self.SELF_CHECK:
             self._self_check()
+
+    def parse(self, input):
+        tokens = self.lexer.tokenize(input)
+        return self.parser.parse(tokens, self)
 
     def _self_check(self):
         from .self_check import run_self_check
         run_self_check(self)
 
-    def _call_reduce(self, goal, accepts, parts):
-        args = [p[0] for a, p in zip(accepts, parts) if a]
-
-        if goal is None:
-            assert len(args) == 1
-            return args[0]
-        else:
-            return getattr(self, goal)(*args)
-
-    def _call_error_handler(self, handler, error_stack, error_tokens):
-        return getattr(self, handler)(error_stack, error_tokens)
-
-    def parse(self, input):
-        tokens = [(tok.name, tok.value) for tok in self.lex.tokenize(input)]
-        stack = [('START', 0)]
-
-        while len(tokens) > 0:
-            tok_name, tok_value = tokens[0]
-            cur_state = stack[-1][1]
-            if tok_name not in self.parse_table[cur_state]:
-                # Unexpected token, do error recovery
-                try:
-                    # First, pop stack until error handler
-                    error_stack = []
-                    while stack[-1][1] not in self.error_handlers:
-                        error_stack.append(stack.pop())
-
-                    error_handlers = self.error_handlers[stack[-1][1]]
-
-                    error_tokens = []
-                    while tokens[0][0] not in error_handlers:
-                        error_tokens.append(tokens.pop(0))
-
-                    # Call error handler, mimic a reduce operation
-                    error_gen, error_handler = error_handlers[tokens[0][0]]
-                    value = self._call_error_handler(
-                        error_handler,
-                        error_stack,
-                        error_tokens
-                    )
-                    tokens.insert(0, (error_gen, value))
-                except IndexError:
-                    expect_toks = ",".join(self.parse_table[cur_state].keys())
-                    raise ParsionParseError(
-                        f'Unexpected {tok_name}, expected {expect_toks}')
-            else:
-                op, id = self.parse_table[cur_state][tok_name]
-                if op == 's':
-                    # shift
-                    tokens.pop(0)
-                    stack.append((tok_value, id))
-                elif op == 'r':
-                    # reduce
-                    gen, goal, accepts = self.parse_grammar[id]
-                    tokens.insert(0, (
-                        gen,
-                        self._call_reduce(goal, accepts, stack[-len(accepts):])
-                    ))
-                    stack = stack[:-len(accepts)]
-                else:
-                    raise ParsionInternalError(
-                        'Internal error: neigher shift nor reduce')
-
-        # Stack contains three elements:
-        #  0. ('START', ...) - bootstrap
-        #  1. ('entry', ...) - excpeted result
-        #  2. ('END', ...)   - terminination
-        # Therefore, pick out entry value and return
-        return stack[1][0]
-
-    def print(self):  # pragma: no cover
-        from tabulate import tabulate
-
-        def _print_header(header):
-            print("")
-            print(f"{header}")
-
-        _print_header("Lexer")
-        print(tabulate(
-            [
-                (name, regexp.pattern)
-                for name, regexp, handler in self.lex.rules
-            ],
-            tablefmt='simple_outline'
-        ))
-
-        _print_header("FSM grammar")
-        print(tabulate(
-            self.parse_grammar,
-            headers=('generate', 'goal', 'parts'),
-            tablefmt='simple_outline',
-            showindex='always'
-        ))
-        _print_header("FSM states")
-
-        print(tabulate(
-            [
-                {
-                    k: " ".join(str(p) if p is not None else '-' for p in v)
-                    for k, v in st.items()
-                }
-                for st in self.parse_table
-            ],
-            headers='keys',
-            tablefmt='simple_outline',
-            showindex='always'
-        ))
-
     def entry(self, v):
         return v
+
+
+class Parsion(ParsionBase):
+    GRAMMAR_RULES = []
+
+    def __init__(self):
+        (
+            self.parse_grammar,
+            self.parse_table,
+            self.error_handlers
+        ) = ParsionFSM(self.GRAMMAR_RULES).export()
+
+        super().__init__(
+            ParsionLexer(self.LEXER_RULES),
+            ParsionParser(
+                self.parse_grammar,
+                self.parse_table,
+                self.error_handlers
+            )
+        )
+
+
+class ParsionStatic(ParsionBase):
+    STATIC_GRAMMAR = None
+    STATIC_TABLE = None
+    STATIC_ERROR_HANDLERS = None
+
+    def __init__(self):
+        super().__init__(
+            ParsionLexer(self.LEXER_RULES),
+            ParsionParser(
+                self.STATIC_GRAMMAR,
+                self.STATIC_TABLE,
+                self.STATIC_ERROR_HANDLERS
+            )
+        )

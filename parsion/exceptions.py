@@ -12,3 +12,7 @@ class ParsionInternalError(ParsionException):
 
 class ParsionSelfCheckError(ParsionException):
     pass
+
+
+class ParsionParseError(Exception):
+    pass

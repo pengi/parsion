@@ -20,7 +20,7 @@ class ExprLang(Parsion):
 
 def test_simple_lex():
     lang = ExprLang()
-    raw_tokens = list(lang.lex.tokenize("(12+3)*4"))
+    raw_tokens = list(lang.lexer.tokenize("(12+3)*4"))
     str_tokens = [tok.name for tok in raw_tokens]
     assert str_tokens == ['(', 'INT', '+', 'INT', ')', '*', 'INT', '$END']
     assert raw_tokens[1].value == 12
@@ -30,7 +30,7 @@ def test_simple_lex():
 
 def test_lex_token_set():
     lang = ExprLang()
-    assert lang.lex.get_token_set() == {
+    assert lang.lexer.get_token_set() == {
         'INT', '+', '-', '*', '/', '(', ')', '$END'
     }
 
@@ -38,4 +38,4 @@ def test_lex_token_set():
 def test_invalid_token():
     lang = ExprLang()
     with pytest.raises(ParsionLexerError):
-        list(lang.lex.tokenize('( 1+3 ) invalid'))
+        list(lang.lexer.tokenize('( 1+3 ) invalid'))
