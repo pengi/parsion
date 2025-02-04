@@ -1,8 +1,14 @@
 class ParsionException(Exception):
     pass
 
-class ParsionInternalError(Exception):
+
+class ParsionGeneratorError(ParsionException):
     pass
+
+
+class ParsionInternalError(ParsionException):
+    pass
+
 
 class ParsionSelfCheckError(ParsionException):
     pass

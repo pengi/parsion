@@ -2,14 +2,22 @@
 import re
 from .exceptions import ParsionException
 
+
 class ParsionLexerError(ParsionException):
     def __init__(self, message, input, pos):
         super().__init__(message)
         self.input = input
         self.pos = pos
-    
+
     def __str__(self):
+        """
+        Format lexer error
+
+        >>> str(ParsionLexerError("msg", "my input", 3))
+        "msg (pos 3 in 'my input')"
+        """
         return f'{self.args[0]} (pos {self.pos} in {self.input!r})'
+
 
 class ParsionToken:
     def __init__(self, name, value, start, end):
@@ -17,19 +25,30 @@ class ParsionToken:
         self.value = value
         self.start = start
         self.end = end
-    
+
     def __str__(self):
+        """
+        Format token as string
+
+        >>> str(ParsionToken("my_name", "my_value", 12, 14))
+        "[@ 12 my_name: 'my_value']"
+
+        >>> str(ParsionToken("my_name", None, 12, 14))
+        '[@ 12 my_name]'
+        """
         if self.value is None:
             return f'[@{self.start:>3} {self.name}]'
         else:
             return f'[@{self.start:>3} {self.name}: {self.value!r}]'
-    
+
     def ignore(self):
         return self.name is None
+
 
 class ParsionEndToken(ParsionToken):
     def __init__(self, pos):
         super().__init__('$END', '$END', pos, pos)
+
 
 class ParsionLexer:
     def __init__(self, rules):
@@ -43,9 +62,14 @@ class ParsionLexer:
         for name, regexp, handler in self.rules:
             m = regexp.match(input, pos)
             if m is not None:
-                return ParsionToken(name, handler(m.group(1)), m.start(1), m.end(1))
+                return ParsionToken(
+                    name,
+                    handler(m.group(1)),
+                    m.start(1),
+                    m.end(1)
+                )
         return None
-    
+
     def tokenize(self, input):
         pos = 0
         while pos < len(input):
@@ -58,4 +82,9 @@ class ParsionLexer:
         yield ParsionEndToken(pos)
 
     def get_token_set(self):
-        return {rule[0] for rule in self.rules}.union({'END'})
+        return {
+            rule[0]
+            for rule
+            in self.rules
+            if rule[0] is not None
+        }.union({'$END'})

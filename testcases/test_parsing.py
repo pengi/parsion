@@ -1,18 +1,20 @@
 import pytest
-from parsion import *
+from parsion import Parsion, ParsionLexerError, \
+    ParsionParseError, ParsionGeneratorError
+
 
 class ExprLang(Parsion):
     LEXER_RULES = [
-        (None,       r'(\s+)',                     lambda x: None),
-        ('INT',      r'([0-9]+|0x[0-9a-fA-F]+)',   lambda x: int(x,base=0)),
+        (None,       r'(\s+)', lambda x: None),
+        ('INT',      r'([0-9]+|0x[0-9a-fA-F]+)', lambda x: int(x, base=0)),
 
-        ('+',        r'(\+)',                      lambda x: None),
-        ('-',        r'(-)',                       lambda x: None),
-        ('*',        r'(\*)',                      lambda x: None),
-        ('/',        r'(\/)',                      lambda x: None),
+        ('+',        r'(\+)', lambda x: None),
+        ('-',        r'(-)', lambda x: None),
+        ('*',        r'(\*)', lambda x: None),
+        ('/',        r'(\/)', lambda x: None),
 
-        ('(',        r'([\(])',                    lambda x: None),
-        (')',        r'([\)])',                    lambda x: None)
+        ('(',        r'([\(])', lambda x: None),
+        (')',        r'([\)])', lambda x: None)
     ]
     GRAMMAR_RULES = [
         ('entry',       'entry',        'expr'),
@@ -28,53 +30,58 @@ class ExprLang(Parsion):
         ('expr_int',    'expr4',        'INT'),
         (None,          'expr4',        '_( expr _)'),
     ]
-    
+
     def expr_add(self, lhs, rhs):
         return lhs + rhs
-    
+
     def expr_sub(self, lhs, rhs):
         return lhs - rhs
-    
+
     def expr_mult(self, lhs, rhs):
         return lhs * rhs
-    
+
     def expr_div(self, lhs, rhs):
         return lhs // rhs
-    
+
     def expr_neg(self, v):
         return -v
-    
+
     def expr_int(self, v):
         return v
+
 
 class ExprLangAST(ExprLang):
     """
     Same language as ExprLang, but track syntax tree
     """
+
     def expr_add(self, lhs, rhs):
         return ('expr_add', lhs, rhs)
-    
+
     def expr_sub(self, lhs, rhs):
         return ('expr_sub', lhs, rhs)
-    
+
     def expr_mult(self, lhs, rhs):
         return ('expr_mult', lhs, rhs)
-    
+
     def expr_div(self, lhs, rhs):
         return ('expr_div', lhs, rhs)
-    
+
     def expr_neg(self, v):
         return ('expr_neg', v)
-    
+
     def expr_int(self, v):
         return ('expr_int', v)
 
+
 def test_simple_parse():
     lang = ExprLang()
-    assert lang.parse("(12+3)*4") == (12+3)*4
-    assert lang.parse("(12+3-1)*4") == (12+3-1)*4
-    assert lang.parse("(12+3-1)*(32*-2)") == (12+3-1)*(32*-2)
-    assert lang.parse("(12+3-1+55*23*45)/(3*-2)") == (12+3-1+55*23*45)//(3*-2)
+    assert lang.parse("(12+3)*4") == (12 + 3) * 4
+    assert lang.parse("(12+3-1)*4") == (12 + 3 - 1) * 4
+    assert lang.parse("(12+3-1)*(32*-2)") == (12 + 3 - 1) * (32 * -2)
+    assert lang.parse("(12+3-1+55*23*45)/(3*-2)") == \
+        (12 + 3 - 1 + 55 * 23 * 45) // (3 * -2)
+
 
 def test_simple_parse_ast():
     lang = ExprLangAST()
@@ -84,24 +91,25 @@ def test_simple_parse_ast():
                 ('expr_add',
                     ('expr_int', 12),
                     ('expr_int', 3)
-                ),
+                 ),
                 ('expr_sub',
                     ('expr_int', 4),
                     ('expr_int', 1)
-                )
-            ),
+                 )
+             ),
             ('expr_neg',
                 ('expr_int', 12)
-            )
-        )
+             )
+         )
+
 
 def test_parse_errors():
     lang = ExprLang()
-    
+
     # Missing token
     with pytest.raises(ParsionParseError):
         lang.parse("(12+3")
-    
+
     # Extra token
     with pytest.raises(ParsionParseError):
         lang.parse("(12+3))")
@@ -109,7 +117,37 @@ def test_parse_errors():
 
 def test_lexing_errors():
     lang = ExprLang()
-    
+
     # Missing token
     with pytest.raises(ParsionLexerError):
         lang.parse("(12+3x")
+
+
+def test_shift_reduce_conflict():
+    class ShiftReduceLang(Parsion):
+        LEXER_RULES = [
+            (sym, f'({sym})', lambda x: x)
+            for sym in ['A', 'B', 'C', 'D']
+        ]
+        GRAMMAR_RULES = [
+            (None,          'entry',        'expr'),
+            ('op_A',        'expr',         'expr A expr'),
+            ('op_B',        'expr',         'expr B expr'),
+            ('lit_C',       'expr',         'C'),
+            ('lit_D',       'expr',         'D')
+        ]
+
+        def op_A(self, *a):  # pragma: no cover
+            return None
+
+        def op_B(self, *a):  # pragma: no cover
+            return None
+
+        def lit_C(self, *a):  # pragma: no cover
+            return None
+
+        def lit_D(self, *a):  # pragma: no cover
+            return None
+
+    with pytest.raises(ParsionGeneratorError):
+        ShiftReduceLang()
