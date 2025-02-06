@@ -1,7 +1,10 @@
+from inspect import Signature
+from typing import Optional
 from .exceptions import ParsionSelfCheckError
+from .core import ParsionBase
 
 
-def _self_check_handlers(par):
+def _self_check_handlers(par: ParsionBase) -> None:
     """
     Startup check for handlers
 
@@ -25,28 +28,27 @@ def _self_check_handlers(par):
 
     # Check all error handlers are implemented
     for error_handlers in par.parser.error_handlers.values():
-        for gen, handler in error_handlers.values():
-            expected_funcs[handler] = 2  # error_stack, error_tokens
+        for gen, handler_name in error_handlers.values():
+            expected_funcs[handler_name] = 2  # error_stack, error_tokens
 
     # Check all reduce handlers are accessable
     for goal, arg_count in expected_funcs.items():
         try:
-            handler = inspect.signature(getattr(par, goal))
+            handler: Signature = inspect.signature(getattr(par, goal))
 
             # Count minimum and maximum number of arguments
-            param_count_min = 0
-            param_count_max = 0
+            param_count_min: int = 0
+            param_count_max: Optional[int] = 0
             for p in handler.parameters.values():
                 if p.kind in {p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD}:
                     # Positional attribute, with or without default value
-                    param_count_max += 1
+                    if param_count_max is not None:
+                        param_count_max += 1
                     if p.default == p.empty:
                         param_count_min += 1
                 if p.kind in {p.VAR_POSITIONAL}:
                     # Variable attribute: *args
                     param_count_max = None
-                    # No more paramters can come afterwards
-                    break
 
             if arg_count < param_count_min or (
                 param_count_max is not None and param_count_max < arg_count
@@ -64,5 +66,5 @@ def _self_check_handlers(par):
             raise ParsionSelfCheckError(f"No handler defined for {goal}")
 
 
-def run_self_check(par):
+def run_self_check(par: ParsionBase) -> None:
     _self_check_handlers(par)

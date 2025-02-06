@@ -18,7 +18,7 @@ class ExprLang(Parsion):
     GRAMMAR_RULES = []
 
 
-def test_simple_lex():
+def test_simple_lex() -> None:
     lang = ExprLang()
     raw_tokens = list(lang.lexer.tokenize("(12+3)*4"))
     str_tokens = [tok.name for tok in raw_tokens]
@@ -28,14 +28,14 @@ def test_simple_lex():
     assert raw_tokens[6].value == 4
 
 
-def test_lex_token_set():
+def test_lex_token_set() -> None:
     lang = ExprLang()
     assert lang.lexer.get_token_set() == {
         'INT', '+', '-', '*', '/', '(', ')', '$END'
     }
 
 
-def test_invalid_token():
+def test_invalid_token() -> None:
     lang = ExprLang()
     with pytest.raises(ParsionLexerError):
         list(lang.lexer.tokenize('( 1+3 ) invalid'))

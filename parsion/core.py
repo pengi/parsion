@@ -1,34 +1,43 @@
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from .lex import ParsionLexer
 from .parser import ParsionParser
 from .parsegen import ParsionFSM
 
 
 class ParsionBase:
-    LEXER_RULES = []
-    SELF_CHECK = True
+    LEXER_RULES: List[Tuple[Optional[str], str,
+                            Callable[[str], Optional[Any]]]] = []
+    SELF_CHECK: bool = True
 
-    def __init__(self, lexer, parser):
+    lexer: ParsionLexer
+    parser: ParsionParser
+
+    def __init__(self, lexer: ParsionLexer, parser: ParsionParser):
         self.lexer = lexer
         self.parser = parser
         if self.SELF_CHECK:
             self._self_check()
 
-    def parse(self, input):
+    def parse(self, input: str) -> Any:
         tokens = self.lexer.tokenize(input)
         return self.parser.parse(tokens, self)
 
-    def _self_check(self):
+    def _self_check(self) -> None:
         from .self_check import run_self_check
         run_self_check(self)
 
-    def entry(self, v):
+    def entry(self, v: Any) -> Any:
         return v
 
 
 class Parsion(ParsionBase):
-    GRAMMAR_RULES = []
+    GRAMMAR_RULES: List[Tuple[Optional[str], str, str]] = []
 
-    def __init__(self):
+    parse_grammar: List[Tuple[str, Optional[str], List[bool]]]
+    parse_table: List[Dict[str, Tuple[str, int]]]
+    error_handlers: Dict[int, Dict[str, Tuple[str, str]]]
+
+    def __init__(self) -> None:
         (
             self.parse_grammar,
             self.parse_table,
@@ -46,11 +55,11 @@ class Parsion(ParsionBase):
 
 
 class ParsionStatic(ParsionBase):
-    STATIC_GRAMMAR = None
-    STATIC_TABLE = None
-    STATIC_ERROR_HANDLERS = None
+    STATIC_GRAMMAR: List[Tuple[str, Optional[str], List[bool]]] = []
+    STATIC_TABLE: List[Dict[str, Tuple[str, int]]] = []
+    STATIC_ERROR_HANDLERS: Dict[int, Dict[str, Tuple[str, str]]] = {}
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             ParsionLexer(self.LEXER_RULES),
             ParsionParser(

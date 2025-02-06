@@ -1,8 +1,9 @@
+from typing import List
 import pytest
 from parsion import ParsionStatic, ParsionInternalError
 
 
-def test_static_table():
+def test_static_table() -> None:
     class StaticLang(ParsionStatic):
         LEXER_RULES = [
             (None,       r'(\s+)', lambda x: None),
@@ -29,17 +30,20 @@ def test_static_table():
         ]
         STATIC_ERROR_HANDLERS = {}
 
-        def expr_int(self, x):
+        def expr_int(self, x: int) -> List[int]:  # pragma: no cover
             return [x]
 
-        def expr_int_expr(self, x, xs):
+        def expr_int_expr(self,
+                          x: int,
+                          xs: List[int]
+                          ) -> List[int]:  # pragma: no cover
             return [x] + xs
 
     static_lang = StaticLang()
     assert static_lang.parse('12 13 14 15') == [12, 13, 14, 15]
 
 
-def test_static_table_error():
+def test_static_table_error() -> None:
     class StaticLang(ParsionStatic):
         LEXER_RULES = [
             (None,       r'(\s+)', lambda x: None),
@@ -66,10 +70,13 @@ def test_static_table_error():
         ]
         STATIC_ERROR_HANDLERS = {}
 
-        def expr_int(self, x):  # pragma: no cover
+        def expr_int(self, x: int) -> List[int]:  # pragma: no cover
             return [x]
 
-        def expr_int_expr(self, x, xs):  # pragma: no cover
+        def expr_int_expr(self,
+                          x: int,
+                          xs: List[int]
+                          ) -> List[int]:  # pragma: no cover
             return [x] + xs
 
     static_lang = StaticLang()

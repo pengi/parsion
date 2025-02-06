@@ -1,3 +1,4 @@
+from typing import Any
 import pytest
 from parsion import Parsion, ParsionSelfCheckError
 
@@ -14,119 +15,136 @@ class BaseLang(Parsion):
     ]
 
 
-def test_working():
+def test_working() -> None:
     """
     Self check of base language fixture
     """
     class TestLang(BaseLang):
-        def expr_int(self, v):
+        def expr_int(self, v: int) -> int:
             return v
 
-        def expr_int_expr(self, v, e):
+        def expr_int_expr(self, v: int, e: int) -> int:
             return v + e
 
     lang = TestLang()
     assert lang.parse("1 3 4 5") == 1 + 3 + 4 + 5
 
 
-def test_extra_arg():
+def test_extra_arg() -> None:
     class TestLang(BaseLang):
-        def expr_int(self, v):  # pragma: no cover
+        def expr_int(self, v: int) -> int:  # pragma: no cover
             return v
 
-        def expr_int_expr(self, v, e, extra):  # pragma: no cover
+        def expr_int_expr(self,
+                          v: int,
+                          e: int,
+                          extra: Any
+                          ) -> int:  # pragma: no cover
             return v + e
 
     with pytest.raises(ParsionSelfCheckError):
         TestLang()
 
 
-def test_missing_arg():
+def test_missing_arg() -> None:
     class TestLang(BaseLang):
-        def expr_int(self, v):  # pragma: no cover
+        def expr_int(self, v: int) -> int:  # pragma: no cover
             return v
 
-        def expr_int_expr(self, v):  # pragma: no cover
+        def expr_int_expr(self, v: int) -> int:  # pragma: no cover
             return v
 
     with pytest.raises(ParsionSelfCheckError):
         TestLang()
 
 
-def test_default_value_expected():
+def test_default_value_expected() -> None:
     class TestLang(BaseLang):
-        def expr_int(self, v):
+        def expr_int(self, v: int) -> int:
             return v
 
-        def expr_int_expr(self, v, e=12):
+        def expr_int_expr(self, v: int, e: int = 12) -> int:
             return v + e
 
     lang = TestLang()
     assert lang.parse("1 3 4 5") == 1 + 3 + 4 + 5
 
 
-def test_default_value_extra():
+def test_default_value_extra() -> None:
     class TestLang(BaseLang):
-        def expr_int(self, v):
+        def expr_int(self, v: int) -> int:
             return v
 
-        def expr_int_expr(self, v, e, extra=12):
+        def expr_int_expr(self, v: int, e: int, extra: int = 12) -> int:
             return v + e
 
     lang = TestLang()
     assert lang.parse("1 3 4 5") == 1 + 3 + 4 + 5
 
 
-def test_default_value_error():
+def test_default_value_error() -> None:
     class TestLang(BaseLang):
-        def expr_int(self, v):  # pragma: no cover
+        def expr_int(self, v: int) -> int:  # pragma: no cover
             return v
 
-        def expr_int_expr(self, v, e, c, d, f, extra=12):  # pragma: no cover
+        def expr_int_expr(self,
+                          v: int,
+                          e: int,
+                          c: int,
+                          d: int,
+                          f: int,
+                          extra: int = 12
+                          ) -> int:  # pragma: no cover
             return v + e
 
     with pytest.raises(ParsionSelfCheckError):
         TestLang()
 
 
-def test_variable_args():
+def test_variable_args() -> None:
     class TestLang(BaseLang):
-        def expr_int(self, v):
+        def expr_int(self, v: int) -> int:
             return v
 
-        def expr_int_expr(self, *args):
+        def expr_int_expr(self, *args: int) -> int:
             return sum(args)
 
     lang = TestLang()
     assert lang.parse("1 3 4 5") == 1 + 3 + 4 + 5
 
 
-def test_variable_args_error():
+def test_variable_args_error() -> None:
     class TestLang(BaseLang):
-        def expr_int(self, v):  # pragma: no cover
+        def expr_int(self, v: int) -> int:  # pragma: no cover
             return v
 
-        def expr_int_expr(self, a, b, c, d, *args):  # pragma: no cover
+        def expr_int_expr(self,
+                          a: int,
+                          b: int,
+                          c: int,
+                          d: int,
+                          *args: int
+                          ) -> int:  # pragma: no cover
             return sum(args)
 
     with pytest.raises(ParsionSelfCheckError):
         TestLang()
 
 
-def test_missing_func():
+def test_missing_func() -> None:
     class TestLang(BaseLang):
-        def expr_int(self, v):  # pragma: no cover
+        def expr_int(self, v: int) -> int:  # pragma: no cover
             return v
 
     with pytest.raises(ParsionSelfCheckError):
         TestLang()
 
 
-def test_self_check_disabled():
+def test_self_check_disabled() -> None:
     class TestLang(BaseLang):
         SELF_CHECK = False
 
-        def expr_int(self, v):
+        def expr_int(self, v: int) -> int:
             return v
 
     # Parser generation should work
@@ -140,7 +158,7 @@ def test_self_check_disabled():
         lang.parse('12 13')
 
 
-def test_invalid_anonymous_rule():
+def test_invalid_anonymous_rule() -> None:
     class TestLang(BaseLang):
         GRAMMAR_RULES = [
             ('entry',         'entry',        'expr'),
@@ -148,7 +166,7 @@ def test_invalid_anonymous_rule():
             (None, 'expr',         'INT expr')
         ]
 
-        def expr_int(self, v):  # pragma: no cover
+        def expr_int(self, v: int) -> int:  # pragma: no cover
             return v
 
     with pytest.raises(ParsionSelfCheckError):

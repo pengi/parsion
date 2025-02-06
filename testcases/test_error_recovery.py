@@ -1,8 +1,9 @@
+from typing import Any, List, Optional
 import pytest
 from parsion import Parsion, ParsionSelfCheckError, ParsionGeneratorError
 
 
-class ExprLang(Parsion):
+class ExprLang(Parsion):  # pragma: no cover
     LEXER_RULES = [
         (None,       r'(\s+)', lambda x: None),
         ('INT',      r'([0-9]+|0x[0-9a-fA-F]+)', lambda x: int(x, base=0)),
@@ -38,42 +39,47 @@ class ExprLang(Parsion):
         (None,          'expr4',        '_( expr _)'),
     ]
 
-    def stmts_list(self, expr, list):  # pragma: no cover
+    def stmts_list(self,
+                   expr: Optional[int],
+                   list: List[Optional[int]]
+                   ) -> List[Optional[int]]:
         return [expr] + list
 
-    def stmts_tail(self, expr):  # pragma: no cover
+    def stmts_tail(self,
+                   expr: Optional[int]
+                   ) -> List[Optional[int]]:
         return [expr]
 
-    def expr_add(self, lhs, rhs):  # pragma: no cover
+    def expr_add(self, lhs: int, rhs: int) -> int:
         return lhs + rhs
 
-    def expr_sub(self, lhs, rhs):  # pragma: no cover
+    def expr_sub(self, lhs: int, rhs: int) -> int:
         return lhs - rhs
 
-    def expr_mult(self, lhs, rhs):  # pragma: no cover
+    def expr_mult(self, lhs: int, rhs: int) -> int:
         return lhs * rhs
 
-    def expr_div(self, lhs, rhs):  # pragma: no cover
+    def expr_div(self, lhs: int, rhs: int) -> int:
         return lhs // rhs
 
-    def expr_neg(self, v):  # pragma: no cover
+    def expr_neg(self, v: int) -> int:
         return -v
 
-    def expr_int(self, v):  # pragma: no cover
+    def expr_int(self, v: int) -> int:
         return v
 
 
 class ExprLangErrorHandler(ExprLang):
-    def error_stmt(self, error_stack, error_tokens):
+    def error_stmt(self, error_stack: Any, error_tokens: Any) -> Optional[int]:
         return None
 
 
-def test_simple_parse():
+def test_simple_parse() -> None:
     lang = ExprLangErrorHandler()
     assert lang.parse("(12+3)*4; 1+3; 43*4") == [(12 + 3) * 4, 1 + 3, 43 * 4]
 
 
-def test_simple_error_stmt():
+def test_simple_error_stmt() -> None:
     """
     Test that error in one statement is isolated to that statement
     """
@@ -81,12 +87,12 @@ def test_simple_error_stmt():
     assert lang.parse("(12+3)*4; 3+ *; 43*4") == [(12 + 3) * 4, None, 43 * 4]
 
 
-def test_missing_error_handler():
+def test_missing_error_handler() -> None:
     with pytest.raises(ParsionSelfCheckError):
         ExprLang()
 
 
-def test_conflicing_error_handlers():
+def test_conflicing_error_handlers() -> None:
     class ConflictingErrorLang(Parsion):
         LEXER_RULES = [
             (sym, f'({sym})', lambda x: x)
@@ -101,10 +107,10 @@ def test_conflicing_error_handlers():
             (None,          'stmt_b',       'B')
         ]
 
-        def error_a(self, *a):  # pragma: no cover
+        def error_a(self, *a: List[Any]) -> None:  # pragma: no cover
             return None
 
-        def error_b(self, *a):  # pragma: no cover
+        def error_b(self, *a: List[Any]) -> None:  # pragma: no cover
             return None
 
     with pytest.raises(ParsionGeneratorError):

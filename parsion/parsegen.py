@@ -1,7 +1,10 @@
+from __future__ import annotations
+
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 from .exceptions import ParsionGeneratorError
 
 
-def _noset(obj):
+def _noset(obj: Any) -> Any:
     """
     Remove sets from obj, only for doctests
 
@@ -35,7 +38,14 @@ class ParsionFSMMergeError(Exception):
 
 
 class ParsionFSMGrammarRule:
-    def __init__(self, id, name, gen, rulestr):
+    id: int
+    name: Optional[str]
+    gen: str
+    parts: List[str]
+    attrtokens: List[bool]
+    _hash: int
+
+    def __init__(self, id: int, name: Optional[str], gen: str, rulestr: str):
         self.id = id
         self.name = name
         self.gen = gen
@@ -45,23 +55,23 @@ class ParsionFSMGrammarRule:
         self.parts = [part[1:] if part[0] == '_' else part for part in parts]
 
         # This class will never change value. Precalculate hash
-        self.hash = hash((
+        self._hash = hash((
             type(self).__name__,
             self.gen,
             self.name,
             sum(hash(t) for t in self.attrtokens)
         ))
 
-    def get(self, idx, default=None):
+    def get(self, idx: int, default: Optional[str] = None) -> Optional[str]:
         if idx < len(self.parts):
             return self.parts[idx]
         else:
             return default
 
-    def export(self):
+    def export(self) -> Tuple[str, Optional[str], List[bool]]:
         return (self.gen, self.name, self.attrtokens)
 
-    def _tupleize(self):
+    def _tupleize(self) -> Tuple[str, str, List[str], List[bool]]:
         """
         Get a tuple of all relevant parameters, for usage in __eq__ and __lt__
 
@@ -70,35 +80,45 @@ class ParsionFSMGrammarRule:
         """
         return (self.name or '', self.gen, self.parts, self.attrtokens)
 
-    def __hash__(self):
-        return self.hash
+    def __hash__(self) -> int:
+        return self._hash
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
+        assert isinstance(other, ParsionFSMGrammarRule)
         return self._tupleize() < other._tupleize()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, ParsionFSMGrammarRule)
         return self._tupleize() == other._tupleize()
 
-    def __str__(self):  # pragma: no cover
+    def __str__(self) -> str:  # pragma: no cover
         name = f'{self.name}:' if self.name is not None else ''
         return f'{name:<12} {self.gen:<10} = {" ".join(self.parts)}'
 
 
 class ParsionFSMItem:
-    def __init__(self, rule, follow, pos=0):
+    rule: ParsionFSMGrammarRule
+    pos: int
+    follow: Set[str]
+    _hash: int
+
+    def __init__(self,
+                 rule: ParsionFSMGrammarRule,
+                 follow: Set[str],
+                 pos: int = 0):
         self.rule = rule
         self.pos = pos
         self.follow = set(follow)
 
         # This class will never change value. Precalculate hash
-        self.hash = hash((
+        self._hash = hash((
             type(self).__name__,
             self.rule,
             self.pos,
             sum(hash(x) for x in self.follow)
         ))
 
-    def __str__(self):  # pragma: no cover
+    def __str__(self) -> str:  # pragma: no cover
         name = f'{self.rule.name}:' if self.rule.name is not None else ''
         fmt_parts = [
             part if i != self.pos else f'>{part}<'
@@ -106,22 +126,24 @@ class ParsionFSMItem:
         ]
         return f'{name:<12} {self.rule.gen:<10} = {" ".join(fmt_parts)}'
 
-    def _tupleize(self):
+    def _tupleize(self) -> Tuple[ParsionFSMGrammarRule, int, Set[str]]:
         """
         Get a tuple of all relevant parameters, for usage in __eq__ and __lt__
         """
         return (self.rule, self.pos, self.follow)
 
-    def __hash__(self):
-        return self.hash
+    def __hash__(self) -> int:
+        return self._hash
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
+        assert isinstance(other, ParsionFSMItem)
         return self._tupleize() < other._tupleize()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, ParsionFSMItem)
         return self._tupleize() == other._tupleize()
 
-    def get_next(self):
+    def get_next(self) -> Tuple[str, Set[str]]:
         """
         Get next two symbols from an item
 
@@ -136,32 +158,29 @@ class ParsionFSMItem:
         >>> _noset(ParsionFSMItem(rule, {'fa', 'fb'}, 2).get_next())
         ('rhs', ['fa', 'fb'])
 
-        >>> ParsionFSMItem(rule, {'fa', 'fb'}, 3).get_next() is None
-        True
         """
         n = self.rule.get(self.pos)
-        if n is None:
-            return None
+        assert n is not None  # Should be checked before calling
         f = self.rule.get(self.pos + 1)
         if f is None:
-            f = self.follow
+            fs = self.follow
         else:
-            f = {f}
-        return n, f
+            fs = {f}
+        return n, fs
 
-    def is_complete(self):
+    def is_complete(self) -> bool:
         return self.rule.get(self.pos) is None
 
-    def take(self, sym):
+    def take(self, sym: str) -> Optional['ParsionFSMItem']:
         if self.rule.get(self.pos) == sym:
             return ParsionFSMItem(self.rule, self.follow, self.pos + 1)
         else:
             return None
 
-    def is_mergable(self, other):
+    def is_mergable(self, other: 'ParsionFSMItem') -> bool:
         return self.rule == other.rule and self.pos == other.pos
 
-    def merge(self, other):
+    def merge(self, other: 'ParsionFSMItem') -> 'ParsionFSMItem':
         """
         Merge two identical items but with different follows, and return the
         combined
@@ -192,12 +211,14 @@ class ParsionFSMItem:
 
 
 class ParsionFSMState:
+    items: Set[ParsionFSMItem]
+    _hash: int
 
-    def __init__(self, items):
+    def __init__(self, items: Iterable[ParsionFSMItem]):
         self.items = set(items)
-        self.hash = sum(hash(it) for it in self.items)
+        self._hash = sum(hash(it) for it in self.items)
 
-    def next_syms(self):
+    def next_syms(self) -> Set[str]:
         return set(
             it.get_next()[0]
             for it
@@ -205,10 +226,10 @@ class ParsionFSMState:
             if not it.is_complete()
         )
 
-    def reductions(self):
+    def reductions(self) -> List[ParsionFSMItem]:
         return [it for it in self.items if it.is_complete()]
 
-    def take(self, sym):
+    def take(self, sym: str) -> List[ParsionFSMItem]:
         result = []
         for item in self.items:
             next_item = item.take(sym)
@@ -216,23 +237,37 @@ class ParsionFSMState:
                 result.append(next_item)
         return result
 
-    def __hash__(self):
-        return self.hash
+    def __hash__(self) -> int:
+        return self._hash
 
-    def __str__(self):  # pragma: no cover
+    def __str__(self) -> str:  # pragma: no cover
         return "\n".join(str(it) for it in self.items)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, ParsionFSMState)
         return self.items == other.items
 
 
 class ParsionFSM:
-    def __init__(self, grammar_rules):
+    error_rules: Dict[str, str]
+    grammar: List[ParsionFSMGrammarRule]
+
+    state_ids: Dict[ParsionFSMState, int]
+    states: List[ParsionFSMState]
+    table: List[Dict[str, Tuple[str, int]]]
+
+    sym_set: Set[str]
+
+    firsts: Dict[str, Set[str]]
+    error_handlers: Dict[int, Dict[str, Tuple[str, str]]]
+
+    def __init__(self, grammar_rules: List[Tuple[Optional[str], str, str]]):
+        # TODO: verify no error hanlders has None as name
         self.error_rules = {
             gen: name
             for (name, gen, rulestr)
             in grammar_rules
-            if rulestr == '$ERROR'
+            if rulestr == '$ERROR' and name is not None
         }
 
         no_error_rules = [
@@ -259,10 +294,10 @@ class ParsionFSM:
         self._calculate_firsts()
         self._build_states()
 
-    def _get_rules_by_gen(self, gen):
+    def _get_rules_by_gen(self, gen: str) -> List[ParsionFSMGrammarRule]:
         return [rule for rule in self.grammar if rule.gen == gen]
 
-    def _add_state(self, state):
+    def _add_state(self, state: ParsionFSMState) -> int:
         state_id = self.state_ids.get(state)
         if state_id is None:
             state_id = len(self.states)
@@ -271,13 +306,13 @@ class ParsionFSM:
             self.table.append({})
         return state_id
 
-    def _build_sym_set(self):
+    def _build_sym_set(self) -> None:
         self.sym_set = set()
         for rule in self.grammar:
             self.sym_set.add(rule.gen)
             self.sym_set.update(rule.parts)
 
-    def _calculate_firsts(self):
+    def _calculate_firsts(self) -> None:
         rule_firsts = {rule.gen: rule.parts[0] for rule in self.grammar}
         self.firsts = {}
         for sym in self.sym_set:
@@ -289,13 +324,15 @@ class ParsionFSM:
                     cur_sym = rule_firsts[cur_sym]
             self.firsts[sym] = first_set
 
-    def _get_first(self, syms):
+    def _get_first(self, syms: Set[str]) -> Set[str]:
         result = set()
         for sym in syms:
             result.update(self.firsts.get(sym, set()))
         return result
 
-    def _get_closure(self, items):
+    def _get_closure(self,
+                     items: Iterable[ParsionFSMItem]
+                     ) -> List[ParsionFSMItem]:
         """
         Get a closure from list of items
 
@@ -303,8 +340,8 @@ class ParsionFSM:
         grammars, which generates the next symbol of the incoming list of items
         """
 
-        all_items = {}
-        queue = []
+        all_items: Dict[Tuple[ParsionFSMGrammarRule, int], ParsionFSMItem] = {}
+        queue: List[ParsionFSMItem] = []
 
         for item in items:
             queue.append(item)
@@ -331,7 +368,7 @@ class ParsionFSM:
 
         return sorted(all_items.values())
 
-    def _build_states(self):
+    def _build_states(self) -> None:
         self.states = []
         self.table = []
         self.state_ids = {}
@@ -357,7 +394,7 @@ class ParsionFSM:
             processed.add(state_id)
 
             # Check if state can have an error handler
-            error_handlers = {}
+            error_handlers: Dict[str, Tuple[str, str]] = {}
             for it in state.items:
                 if it.rule.gen in self.error_rules:
                     for sym in it.follow:
@@ -383,7 +420,11 @@ class ParsionFSM:
                         raise ParsionGeneratorError("Shift/Reduce conflict")
                     self.table[state_id][sym] = ('r', it.rule.id)
 
-    def export(self):
+    def export(self) -> Tuple[
+        List[Tuple[str, Optional[str], List[bool]]],
+        List[Dict[str, Tuple[str, int]]],
+        Dict[int, Dict[str, Tuple[str, str]]]
+    ]:
         return (
             [g.export() for g in self.grammar],
             self.table,

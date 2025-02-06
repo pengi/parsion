@@ -1,3 +1,4 @@
+from typing import Any, List, Tuple
 import pytest
 from parsion import Parsion, ParsionLexerError, \
     ParsionParseError, ParsionGeneratorError
@@ -31,22 +32,24 @@ class ExprLang(Parsion):
         (None,          'expr4',        '_( expr _)'),
     ]
 
-    def expr_add(self, lhs, rhs):
+
+class ExprLangInt(ExprLang):
+    def expr_add(self, lhs: int, rhs: int) -> int:
         return lhs + rhs
 
-    def expr_sub(self, lhs, rhs):
+    def expr_sub(self, lhs: int, rhs: int) -> int:
         return lhs - rhs
 
-    def expr_mult(self, lhs, rhs):
+    def expr_mult(self, lhs: int, rhs: int) -> int:
         return lhs * rhs
 
-    def expr_div(self, lhs, rhs):
+    def expr_div(self, lhs: int, rhs: int) -> int:
         return lhs // rhs
 
-    def expr_neg(self, v):
+    def expr_neg(self, v: int) -> int:
         return -v
 
-    def expr_int(self, v):
+    def expr_int(self, v: int) -> int:
         return v
 
 
@@ -55,27 +58,27 @@ class ExprLangAST(ExprLang):
     Same language as ExprLang, but track syntax tree
     """
 
-    def expr_add(self, lhs, rhs):
+    def expr_add(self, lhs: Any, rhs: Any) -> Tuple[str, Any, Any]:
         return ('expr_add', lhs, rhs)
 
-    def expr_sub(self, lhs, rhs):
+    def expr_sub(self, lhs: Any, rhs: Any) -> Tuple[str, Any, Any]:
         return ('expr_sub', lhs, rhs)
 
-    def expr_mult(self, lhs, rhs):
+    def expr_mult(self, lhs: Any, rhs: Any) -> Tuple[str, Any, Any]:
         return ('expr_mult', lhs, rhs)
 
-    def expr_div(self, lhs, rhs):
+    def expr_div(self, lhs: Any, rhs: Any) -> Tuple[str, Any, Any]:
         return ('expr_div', lhs, rhs)
 
-    def expr_neg(self, v):
+    def expr_neg(self, v: Any) -> Tuple[str, Any]:
         return ('expr_neg', v)
 
-    def expr_int(self, v):
+    def expr_int(self, v: Any) -> Tuple[str, Any]:
         return ('expr_int', v)
 
 
-def test_simple_parse():
-    lang = ExprLang()
+def test_simple_parse() -> None:
+    lang = ExprLangInt()
     assert lang.parse("(12+3)*4") == (12 + 3) * 4
     assert lang.parse("(12+3-1)*4") == (12 + 3 - 1) * 4
     assert lang.parse("(12+3-1)*(32*-2)") == (12 + 3 - 1) * (32 * -2)
@@ -83,7 +86,7 @@ def test_simple_parse():
         (12 + 3 - 1 + 55 * 23 * 45) // (3 * -2)
 
 
-def test_simple_parse_ast():
+def test_simple_parse_ast() -> None:
     lang = ExprLangAST()
     assert lang.parse("(12+3)*(4-1)/-12") == \
         ('expr_div',
@@ -103,8 +106,8 @@ def test_simple_parse_ast():
          )
 
 
-def test_parse_errors():
-    lang = ExprLang()
+def test_parse_errors() -> None:
+    lang = ExprLangInt()
 
     # Missing token
     with pytest.raises(ParsionParseError):
@@ -115,16 +118,16 @@ def test_parse_errors():
         lang.parse("(12+3))")
 
 
-def test_lexing_errors():
-    lang = ExprLang()
+def test_lexing_errors() -> None:
+    lang = ExprLangInt()
 
     # Missing token
     with pytest.raises(ParsionLexerError):
         lang.parse("(12+3x")
 
 
-def test_shift_reduce_conflict():
-    class ShiftReduceLang(Parsion):
+def test_shift_reduce_conflict() -> None:
+    class ShiftReduceLang(Parsion):  # pragma: no cover
         LEXER_RULES = [
             (sym, f'({sym})', lambda x: x)
             for sym in ['A', 'B', 'C', 'D']
@@ -137,16 +140,16 @@ def test_shift_reduce_conflict():
             ('lit_D',       'expr',         'D')
         ]
 
-        def op_A(self, *a):  # pragma: no cover
+        def op_A(self, *a: List[Any]) -> Any:
             return None
 
-        def op_B(self, *a):  # pragma: no cover
+        def op_B(self, *a: List[Any]) -> Any:
             return None
 
-        def lit_C(self, *a):  # pragma: no cover
+        def lit_C(self, *a: List[Any]) -> Any:
             return None
 
-        def lit_D(self, *a):  # pragma: no cover
+        def lit_D(self, *a: List[Any]) -> Any:
             return None
 
     with pytest.raises(ParsionGeneratorError):
