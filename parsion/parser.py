@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Tuple, Dict, Iterable
+from typing import Any, Callable, List, Optional, Tuple, Dict, Iterable
 from .exceptions import ParsionParseError, ParsionInternalError
 from .lex import ParsionToken
 
@@ -17,29 +17,21 @@ class ParsionParser:
         self.parse_table = parse_table
         self.error_handlers = error_handlers
 
-    def _call_reduce(self,
-                     obj: object,
-                     goal: Optional[str],
-                     accepts: List[bool],
-                     parts: List[Any]) -> Any:
-        args = [p[0] for a, p in zip(accepts, parts) if a]
-
-        if goal is None:
-            assert len(args) == 1
-            return args[0]
-        else:
-            return getattr(obj, goal)(*args)
-
-    def _call_error_handler(self,
-                            obj: object,
-                            handler: str,
-                            error_stack: List[Tuple[str, Any]],
-                            error_tokens: List[Tuple[str, Any]]) -> Any:
-        return getattr(obj, handler)(error_stack, error_tokens)
-
-    def parse(self,
-              input: Iterable[ParsionToken],
-              handlerobj: object) -> Any:
+    def _parse(self,
+               input: Iterable[ParsionToken],
+               reduce_handler: Callable[[
+                   Optional[str],
+                   str,
+                   List[bool],
+                   List[Any]
+               ], Any],
+               error_handler: Callable[[
+                   str,
+                   str,
+                   List[Tuple[str, Any]],
+                   List[Tuple[str, Any]]
+               ], Any]
+               ) -> Any:
         tokens: List[Tuple[str, Any]] = [
             (tok.name, tok.value)
             for tok
@@ -58,17 +50,19 @@ class ParsionParser:
                     while stack[-1][1] not in self.error_handlers:
                         error_stack.append(stack.pop())
 
-                    error_handlers = self.error_handlers[stack[-1][1]]
+                    state_error_handlers = self.error_handlers[stack[-1][1]]
 
                     error_tokens = []
-                    while tokens[0][0] not in error_handlers:
+                    while tokens[0][0] not in state_error_handlers:
                         error_tokens.append(tokens.pop(0))
 
                     # Call error handler, mimic a reduce operation
-                    error_gen, error_handler = error_handlers[tokens[0][0]]
-                    value = self._call_error_handler(
-                        handlerobj,
-                        error_handler,
+                    error_gen, handler_func = \
+                        state_error_handlers[tokens[0][0]]
+
+                    value = error_handler(
+                        handler_func,
+                        error_gen,
                         error_stack,
                         error_tokens
                     )
@@ -88,9 +82,9 @@ class ParsionParser:
                     gen, goal, accepts = self.parse_grammar[id]
                     tokens.insert(0, (
                         gen,
-                        self._call_reduce(
-                            handlerobj,
+                        reduce_handler(
                             goal,
+                            gen,
                             accepts,
                             stack[-len(accepts):]
                         )
@@ -106,3 +100,32 @@ class ParsionParser:
         #  2. ('END', ...)   - terminination
         # Therefore, pick out entry value and return
         return stack[1][0]
+
+    def parse(self,
+              input: Iterable[ParsionToken],
+              handlerobj: object) -> Any:
+
+        def _call_reduce(
+                goal: Optional[str],
+                gen: str,
+                accepts: List[bool],
+                parts: List[Any]) -> Any:
+            args = [p[0] for a, p in zip(accepts, parts) if a]
+
+            if goal is None:
+                assert len(args) == 1
+                return args[0]
+            else:
+                return getattr(handlerobj, goal)(*args)
+
+        def _call_error_handler(
+                handler: str,
+                gen: str,
+                error_stack: List[Tuple[str, Any]],
+                error_tokens: List[Tuple[str, Any]]) -> Any:
+            return getattr(handlerobj, handler)(error_stack, error_tokens)
+
+        return self._parse(
+            input,
+            _call_reduce,
+            _call_error_handler)
