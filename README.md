@@ -130,19 +130,20 @@ Given the grammar:
 ```py
 from parsion import Parsion
 
+
 class ExprErrorLang(Parsion):
     LEXER_RULES = [
-        (None,       r'(\s+)',                   lambda x: None),
+        (None,       r'(\s+)', lambda x: None),
         ('INT',      r'([0-9]+|0x[0-9a-fA-F]+)', lambda x: int(x, base=0)),
 
-        ('+',        r'(\+)',                    lambda x: None),
-        ('-',        r'(-)',                     lambda x: None),
-        ('*',        r'(\*)',                    lambda x: None),
-        ('/',        r'(\/)',                    lambda x: None),
+        ('+',        r'(\+)', lambda x: None),
+        ('-',        r'(-)', lambda x: None),
+        ('*',        r'(\*)', lambda x: None),
+        ('/',        r'(\/)', lambda x: None),
 
-        ('(',        r'([\(])',                  lambda x: None),
-        (')',        r'([\)])',                  lambda x: None),
-        (';',        r'(;)',                     lambda x: None)
+        ('(',        r'([\(])', lambda x: None),
+        (')',        r'([\)])', lambda x: None),
+        (';',        r'(;)', lambda x: None)
     ]
     GRAMMAR_RULES = [
         ('entry',       'entry',        'stmts'),
@@ -151,7 +152,7 @@ class ExprErrorLang(Parsion):
 
         # proxy statement, to be able to isolate errors to top level
         (None,          'stmt',         'expr'),
-        ('error_stmt',  'stmt',         '$ERROR'),
+        ('stmt_error',  'stmt',         '$ERROR'),
 
         (None,          'expr',         'expr1'),
         ('expr_add',    'expr1',        'expr1 _+ expr2'),
@@ -189,10 +190,10 @@ class ExprErrorLang(Parsion):
 
     def expr_int(self, v):
         return v
-        
-    # NOTE: Interface to error handler will change
-    def error_stmt(self, error_stack, error_tokens):
+
+    def stmt_error(self, gen, start, pos, end, expect):
         return None
+
 ```
 
 A valid input would then be
@@ -230,6 +231,21 @@ Will then result in:
 ```
 
 `None` is there the result of the error handler.
+
+
+### Default Error isolation
+
+Without specifying an error handler, an exception will be raised of type
+`ParsionParseError`.
+
+The exception contains the field `pos` containing the location in the input
+string of the erroneous token. It also contains `start` and `end`, which
+includes the scope of where the error occurs.
+
+It is possible in the example above to instead specify the error handler
+`default_error` instead of `stmt_error`. In that case, an exception will still
+be raised, but the `start` and `end` fields will better contain the erroneous
+parse tree.
 
 ## Precalculated tables
 
