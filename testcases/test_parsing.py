@@ -109,13 +109,21 @@ def test_simple_parse_ast() -> None:
 def test_parse_errors() -> None:
     lang = ExprLangInt()
 
+    # Start position depends on innermost parse rule in generic handler.
+    # In general, `pos`, and maybe `end` are probably the only useful values
+    # in a grammar without error isolation
+
     # Missing token
-    with pytest.raises(ParsionParseError):
+    with pytest.raises(ParsionParseError) as e:
         lang.parse("(12+3")
+    assert isinstance(e.value, ParsionParseError)
+    assert (e.value.start, e.value.pos, e.value.end) == (4, 5, 5)
 
     # Extra token
-    with pytest.raises(ParsionParseError):
-        lang.parse("(12+3))")
+    with pytest.raises(ParsionParseError) as e:
+        lang.parse("(12+4))+8")
+    assert isinstance(e.value, ParsionParseError)
+    assert (e.value.start, e.value.pos, e.value.end) == (5, 6, 7)
 
 
 def test_lexing_errors() -> None:

@@ -1,3 +1,6 @@
+from typing import Set
+
+
 class ParsionException(Exception):
     pass
 
@@ -15,4 +18,14 @@ class ParsionSelfCheckError(ParsionException):
 
 
 class ParsionParseError(Exception):
-    pass
+    def __init__(self,
+                 msg: str,
+                 start: int,
+                 pos: int,
+                 end: int,
+                 expect: Set[str]):
+        super().__init__(self, msg, start, pos, end)
+        self.start = start
+        self.pos = pos
+        self.end = end
+        self.expect = expect

@@ -1,4 +1,6 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+from .exceptions import ParsionParseError
 from .lex import ParsionLexer
 from .parser import ParsionParser
 from .parsegen import ParsionFSM
@@ -28,6 +30,17 @@ class ParsionBase:
 
     def entry(self, v: Any) -> Any:
         return v
+
+    def default_error(self,
+                      gen: str,
+                      start: int,
+                      pos: int,
+                      end: int,
+                      expect: Set[str]) -> Any:
+        raise ParsionParseError(
+            'Error parsing',
+            start, pos, end, expect
+        )
 
 
 class Parsion(ParsionBase):

@@ -1,6 +1,23 @@
-from typing import Any, Callable, List, Optional, Tuple, Dict, Iterable
+from dataclasses import dataclass
+from typing import Any, Callable, List, Optional, Set, Tuple, Dict, Iterable
 from .exceptions import ParsionParseError, ParsionInternalError
 from .lex import ParsionToken
+
+
+@dataclass
+class ParsionStackItem:
+    value: Any
+    state: int
+    start: int
+    end: int
+
+
+@dataclass
+class ParsionQueueItem:
+    sym: str
+    value: Any
+    start: int
+    end: int
 
 
 class ParsionParser:
@@ -26,68 +43,90 @@ class ParsionParser:
                    List[Any]
                ], Any],
                error_handler: Callable[[
-                   str,
-                   str,
-                   List[Tuple[str, Any]],
-                   List[Tuple[str, Any]]
-               ], Any]
+                   str, str, int, int, int, Set[str]], Any]
                ) -> Any:
-        tokens: List[Tuple[str, Any]] = [
-            (tok.name, tok.value)
+        tokens: List[ParsionQueueItem] = [
+            ParsionQueueItem(tok.name, tok.value, tok.start, tok.end)
             for tok
             in input
         ]
-        stack: List[Tuple[str, Any]] = [('START', 0)]
+        stack: List[ParsionStackItem] = [ParsionStackItem('START', 0, 0, 0)]
 
         while len(tokens) > 0:
-            tok_name, tok_value = tokens[0]
-            cur_state = stack[-1][1]
-            if tok_name not in self.parse_table[cur_state]:
+            cur_tok = tokens[0]
+            cur_state = stack[-1]
+            if cur_tok.sym not in self.parse_table[cur_state.state]:
                 # Unexpected token, do error recovery
+                expect_toks = set(self.parse_table[cur_state.state].keys())
                 try:
                     # First, pop stack until error handler
-                    error_stack = []
-                    while stack[-1][1] not in self.error_handlers:
+                    error_stack: List[ParsionStackItem] = []
+                    while stack[-1].state not in self.error_handlers:
                         error_stack.append(stack.pop())
 
-                    state_error_handlers = self.error_handlers[stack[-1][1]]
+                    state_error_handlers = self.error_handlers[stack[-1].state]
 
                     error_tokens = []
-                    while tokens[0][0] not in state_error_handlers:
+                    while tokens[0].sym not in state_error_handlers:
                         error_tokens.append(tokens.pop(0))
 
                     # Call error handler, mimic a reduce operation
                     error_gen, handler_func = \
-                        state_error_handlers[tokens[0][0]]
+                        state_error_handlers[tokens[0].sym]
+
+                    error_start = error_stack[-1].start
+                    error_pos = error_tokens[0].start
+                    error_end = error_tokens[-1].end
 
                     value = error_handler(
                         handler_func,
                         error_gen,
-                        error_stack,
-                        error_tokens
+                        error_start,
+                        error_pos,
+                        error_end,
+                        expect_toks
                     )
-                    tokens.insert(0, (error_gen, value))
+                    tokens.insert(0, ParsionQueueItem(
+                        error_gen,
+                        value,
+                        error_start,
+                        error_end
+                    ))
                 except IndexError:
-                    expect_toks = ",".join(self.parse_table[cur_state].keys())
+                    expect_str = ",".join(expect_toks)
                     raise ParsionParseError(
-                        f'Unexpected {tok_name}, expected {expect_toks}')
+                        f'Unexpected {cur_tok.sym}, expected {expect_str}',
+                        cur_state.start,
+                        cur_tok.start,
+                        cur_tok.end,
+                        expect_toks
+                    )
             else:
-                op, id = self.parse_table[cur_state][tok_name]
+                op, id = self.parse_table[cur_state.state][cur_tok.sym]
                 if op == 's':
                     # shift
                     tokens.pop(0)
-                    stack.append((tok_value, id))
+                    stack.append(ParsionStackItem(
+                        cur_tok.value,
+                        id,
+                        cur_tok.start,
+                        cur_tok.end
+                    ))
                 elif op == 'r':
                     # reduce
                     gen, goal, accepts = self.parse_grammar[id]
-                    tokens.insert(0, (
+                    reduce_start = stack[-len(accepts)].start
+                    reduce_end = stack[-1].end
+                    tokens.insert(0, ParsionQueueItem(
                         gen,
                         reduce_handler(
                             goal,
                             gen,
                             accepts,
-                            stack[-len(accepts):]
-                        )
+                            [p.value for p in stack[-len(accepts):]]
+                        ),
+                        reduce_start,
+                        reduce_end
                     ))
                     stack = stack[:-len(accepts)]
                 else:
@@ -99,7 +138,7 @@ class ParsionParser:
         #  1. ('entry', ...) - excpeted result
         #  2. ('END', ...)   - terminination
         # Therefore, pick out entry value and return
-        return stack[1][0]
+        return stack[1].value
 
     def parse(self,
               input: Iterable[ParsionToken],
@@ -110,7 +149,7 @@ class ParsionParser:
                 gen: str,
                 accepts: List[bool],
                 parts: List[Any]) -> Any:
-            args = [p[0] for a, p in zip(accepts, parts) if a]
+            args = [p for a, p in zip(accepts, parts) if a]
 
             if goal is None:
                 assert len(args) == 1
@@ -121,9 +160,17 @@ class ParsionParser:
         def _call_error_handler(
                 handler: str,
                 gen: str,
-                error_stack: List[Tuple[str, Any]],
-                error_tokens: List[Tuple[str, Any]]) -> Any:
-            return getattr(handlerobj, handler)(error_stack, error_tokens)
+                error_start: int,
+                error_pos: int,
+                error_end: int,
+                expect: Set[str]) -> Any:
+            return getattr(handlerobj, handler)(
+                gen,
+                error_start,
+                error_pos,
+                error_end,
+                expect
+            )
 
         return self._parse(
             input,

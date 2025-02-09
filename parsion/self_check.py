@@ -29,7 +29,7 @@ def _self_check_handlers(par: ParsionBase) -> None:
     # Check all error handlers are implemented
     for error_handlers in par.parser.error_handlers.values():
         for gen, handler_name in error_handlers.values():
-            expected_funcs[handler_name] = 2  # error_stack, error_tokens
+            expected_funcs[handler_name] = 5  # gen, start, pos, end, expect
 
     # Check all reduce handlers are accessable
     for goal, arg_count in expected_funcs.items():
