@@ -3,6 +3,86 @@ from .exceptions import ParsionParseError, ParsionInternalError
 from .lex import ParsionToken
 
 
+class ParsionASTNode:
+    def __str__(self) -> str:  # pragma: no cover
+        return '<ParsionASTNode>'
+
+
+class ParsionASTRule(ParsionASTNode):
+    goal: str
+    gen: str
+    parts: List[Any]
+
+    def __init__(self,
+                 goal: str,
+                 gen: str,
+                 parts: List[Any]):
+        self.goal = goal
+        self.gen = gen
+        self.parts = parts
+
+    def __str__(self) -> str:  # pragma: no cover
+        result = [f'{self.gen} - {self.goal}']
+        for part in self.parts:
+            result.extend([
+                "   " + line
+                for line
+                in str(part).split("\n")
+            ])
+        return "\n".join(result)
+
+    def _tupleize(self) -> Tuple[str, str, List[Any]]:
+        return (self.goal, self.gen, self.parts)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, ParsionASTRule):
+            return self._tupleize() == other._tupleize()
+        else:
+            return False
+
+
+# TODO: Define error handlers before making error handler tests
+class ParsionASTError(ParsionASTNode):  # pragma: no cover
+    handler: str
+    gen: str
+    error_stack: List[Tuple[str, Any]]
+    error_tokens: List[Tuple[str, Any]]
+
+    def __init__(self,
+                 handler: str,
+                 gen: str,
+                 error_stack: List[Tuple[str, Any]],
+                 error_tokens: List[Tuple[str, Any]]):
+        self.handler = handler
+        self.gen = gen
+        self.error_stack = error_stack
+        self.error_tokens = error_tokens
+
+    def __str__(self) -> str:
+        result = [f'{self.gen} - {self.handler}', 'stack:']
+        for st in self.error_stack:
+            result.extend([
+                "   " + line
+                for line
+                in str(st[0]).split("\n")
+            ])
+        return "\n".join(result)
+
+    def _tupleize(self) -> Tuple[
+        str,
+        str,
+        List[Tuple[str, Any]],
+        List[Tuple[str, Any]]
+    ]:
+        return (self.handler, self.gen, self.error_stack, self.error_tokens)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, ParsionASTError):
+            return self._tupleize() == other._tupleize()
+        else:
+            return False
+
+
 class ParsionParser:
     parse_grammar: List[Tuple[str, Optional[str], List[bool]]]
     parse_table: List[Dict[str, Tuple[str, int]]]
@@ -129,3 +209,25 @@ class ParsionParser:
             input,
             _call_reduce,
             _call_error_handler)
+
+    def parse_ast(self, input: Iterable[ParsionToken]) -> ParsionASTNode:
+        def _call_reduce(
+                goal: Optional[str],
+                gen: str,
+                accepts: List[bool],
+                parts: List[Any]) -> Any:
+            args = [p[0] for a, p in zip(accepts, parts) if a]
+
+            if goal is None:
+                assert len(args) == 1
+                return args[0]
+            else:
+                return ParsionASTRule(goal, gen.rstrip('0123456789'), args)
+
+        result = self._parse(
+            input,
+            _call_reduce,
+            ParsionASTError
+        )
+        assert isinstance(result, ParsionASTNode)
+        return result

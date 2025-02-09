@@ -1,6 +1,6 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from .lex import ParsionLexer
-from .parser import ParsionParser
+from .parser import ParsionParser, ParsionASTNode
 from .parsegen import ParsionFSM
 
 
@@ -21,6 +21,10 @@ class ParsionBase:
     def parse(self, input: str) -> Any:
         tokens = self.lexer.tokenize(input)
         return self.parser.parse(tokens, self)
+
+    def parse_ast(self, input: str) -> ParsionASTNode:
+        tokens = self.lexer.tokenize(input)
+        return self.parser.parse_ast(tokens)
 
     def _self_check(self) -> None:
         from .self_check import run_self_check
